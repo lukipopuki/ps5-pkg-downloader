@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>ps5-patch-downloader</Name>
-  <Repository>ghcr.io/CHANGE-ME/ps5-patch-downloader:latest</Repository>
+  <Repository>ghcr.io/lukipopuki/ps5-pkg-downloader:latest</Repository>
   <Registry>https://ghcr.io/</Registry>
   <Network>bridge</Network>
   <MyIP/>
@@ -19,7 +19,7 @@
   <Category>Downloaders: Tools:</Category>
   <WebUI>http://[IP]:[PORT:8080]/</WebUI>
   <TemplateURL/>
-  <Icon>https://raw.githubusercontent.com/CHANGE-ME/ps5-patch-downloader/main/frontend/favicon.svg</Icon>
+  <Icon>https://raw.githubusercontent.com/lukipopuki/ps5-pkg-downloader/main/frontend/favicon.svg</Icon>
   <ExtraParams>--user 99:100 --stop-timeout 45</ExtraParams>
   <PostArgs/>
   <CPUset/>

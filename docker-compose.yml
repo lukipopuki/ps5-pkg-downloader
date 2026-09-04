@@ -2,7 +2,7 @@ services:
   ps5-patch-downloader:
     build: .
     # Or use a prebuilt image instead of building locally:
-    # image: ghcr.io/<your-user>/ps5-patch-downloader:latest
+    # image: ghcr.io/lukipopuki/ps5-pkg-downloader:latest
     container_name: ps5-patch-downloader
     restart: unless-stopped
 

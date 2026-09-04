@@ -22,6 +22,7 @@ Fortschrittsanzeige und persistentem Zustand.
 - [Schnellstart auf Unraid](#schnellstart-auf-unraid)
 - [Verzeichnisstruktur auf Unraid](#1-verzeichnisstruktur-auf-unraid)
 - [Installation per Docker Compose](#2-installation-per-docker-compose)
+  - [Zugriff auf das Repository](#zugriff-auf-das-repository)
 - [Port-Mapping](#3-port-mapping)
 - [Volume-Mappings](#4-volume-mappings)
 - [Environment Variables](#5-environment-variables)
@@ -66,14 +67,16 @@ Fortschrittsanzeige und persistentem Zustand.
 mkdir -p /mnt/user/appdata/ps5-patch-downloader
 mkdir -p /mnt/user/downloads/PS5
 cd /mnt/user/appdata/ps5-patch-downloader
-git clone https://github.com/<dein-user>/ps5-patch-downloader.git src
+git clone https://github.com/lukipopuki/ps5-pkg-downloader.git src
 cd src
 docker compose up -d --build
 ```
 
 WebUI: `http://<unraid-ip>:8080`
 
-Die ausführliche Variante steht unten.
+Solange das Repository **privat** ist, fragt `git clone` nach Zugangsdaten —
+siehe [Zugriff auf das Repository](#zugriff-auf-das-repository). Die
+ausführliche Variante steht unten.
 
 ---
 
@@ -111,12 +114,64 @@ Plugins), oder du führst `docker compose` per SSH aus.
 
 ```bash
 cd /mnt/user/appdata/ps5-patch-downloader
-git clone https://github.com/<dein-user>/ps5-patch-downloader.git src
+git clone https://github.com/lukipopuki/ps5-pkg-downloader.git src
 cd src
 cp .env.example .env          # optional, Werte anpassen
 docker compose up -d --build
 docker compose logs -f
 ```
+
+### Zugriff auf das Repository
+
+Das Repository ist privat, deshalb verlangt `git clone` eine Anmeldung — und
+GitHub akzeptiert dafür **kein Account-Passwort** mehr. Drei Wege:
+
+**Personal Access Token.** GitHub → *Settings → Developer settings → Personal
+access tokens → Fine-grained tokens → Generate new token*, unter *Repository
+access* nur `ps5-pkg-downloader` auswählen und als Berechtigung
+*Contents: Read-only* setzen. Beim Klonen dann:
+
+```text
+Username: lukipopuki      ← der GitHub-Benutzername, nicht die E-Mail-Adresse
+Password: github_pat_…    ← der Token, nicht das Account-Passwort
+```
+
+Damit spätere `git pull` den Token nicht erneut abfragen:
+`git config credential.helper store` im geklonten Verzeichnis.
+
+**SSH-Key.** Sauberer für einen Server, der dauerhaft läuft:
+
+```bash
+ssh-keygen -t ed25519 -C "unraid" -f /root/.ssh/id_ed25519 -N ""
+cat /root/.ssh/id_ed25519.pub     # → GitHub, Settings → SSH and GPG keys
+git clone git@github.com:lukipopuki/ps5-pkg-downloader.git src
+```
+
+Achtung: `/root` liegt auf Unraid im RAM und ist nach einem Neustart weg. Key
+dauerhaft sichern und über die `go`-Datei zurückkopieren:
+
+```bash
+mkdir -p /boot/config/ssh/root && cp /root/.ssh/id_ed25519* /boot/config/ssh/root/
+# in /boot/config/go ergänzen:
+# mkdir -p /root/.ssh && cp /boot/config/ssh/root/id_ed25519* /root/.ssh/ \
+#   && chmod 600 /root/.ssh/id_ed25519
+```
+
+**Ohne Git.** Ein Archiv reicht auch — auf einem Rechner mit GitHub-Zugang
+*Code → Download ZIP* laden, per SMB nach
+`\\<server>\appdata\ps5-patch-downloader\` kopieren und entpacken:
+
+```bash
+cd /mnt/user/appdata/ps5-patch-downloader
+unzip ps5-pkg-downloader-*.zip && mv ps5-pkg-downloader-* src && cd src
+docker compose up -d --build
+```
+
+Dafür gibt es später kein `git pull`; Updates laufen dann über ein neues Archiv.
+
+Wenn dir das alles zu umständlich ist: das Repository unter *Settings →
+General → Change visibility* auf öffentlich stellen, dann klont es ohne jede
+Anmeldung.
 
 Erwartete erste Zeilen:
 
@@ -141,7 +196,7 @@ docker run -d --name ps5-patch-downloader --restart unless-stopped \
   -v /mnt/user/appdata/ps5-patch-downloader:/config \
   -v /mnt/user/downloads/PS5:/downloads \
   -e TZ=Europe/Berlin -e MAX_CONCURRENT_DOWNLOADS=2 \
-  ghcr.io/<dein-user>/ps5-patch-downloader:latest
+  ghcr.io/lukipopuki/ps5-pkg-downloader:latest
 ```
 
 ## 3. Port-Mapping
@@ -287,6 +342,10 @@ git pull
 docker compose up -d --build
 docker image prune -f
 ```
+
+Ohne Git (Installation per Archiv): neues Archiv entpacken, `src` ersetzen und
+`docker compose up -d --build` erneut ausführen. `/config` und `/downloads`
+bleiben dabei unangetastet.
 
 Bei einem fertigen Image:
 

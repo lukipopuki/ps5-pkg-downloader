@@ -159,7 +159,7 @@ def load_settings() -> Settings:
         http_max_retries=_env_int("HTTP_MAX_RETRIES", 6, minimum=0),
         http_backoff_base=_env_float("HTTP_BACKOFF_BASE_SECONDS", 2.0, minimum=0.1),
         http_backoff_max=_env_float("HTTP_BACKOFF_MAX_SECONDS", 60.0, minimum=1.0),
-        user_agent=_env("USER_AGENT", "ps5-patch-downloader/1.0 (+https://github.com/)"),
+        user_agent=_env("USER_AGENT", "ps5-patch-downloader/1.0"),
         proxy_url=_env("HTTP_PROXY_URL"),
         verify_tls=_env_bool("VERIFY_TLS", True),
         cache_ttl_hours=_env_float("CACHE_TTL_HOURS", 6.0, minimum=0.0),
