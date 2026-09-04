@@ -1,6 +1,8 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>ps5-patch-downloader</Name>
+  <!-- No image is published yet: build and push one first, or install via
+       docker compose, which builds the image on the server itself. -->
   <Repository>ghcr.io/lukipopuki/ps5-pkg-downloader:latest</Repository>
   <Registry>https://ghcr.io/</Registry>
   <Network>bridge</Network>

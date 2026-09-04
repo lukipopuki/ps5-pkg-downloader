@@ -1,8 +1,9 @@
 services:
   ps5-patch-downloader:
+    # The image is built locally from this directory. There is no published
+    # image yet - set up a registry push first if you want to skip the build:
+    #   image: ghcr.io/lukipopuki/ps5-pkg-downloader:latest
     build: .
-    # Or use a prebuilt image instead of building locally:
-    # image: ghcr.io/lukipopuki/ps5-pkg-downloader:latest
     container_name: ps5-patch-downloader
     restart: unless-stopped
 

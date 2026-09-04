@@ -189,6 +189,10 @@ auswählen.
 
 ### Ohne Compose, nur mit `docker run`
 
+Setzt voraus, dass ein Image existiert. Bisher ist keines veröffentlicht — es
+entsteht beim `docker compose up --build` oben lokal auf dem Server, oder du
+baust und pusht selbst eines in eine Registry.
+
 ```bash
 docker run -d --name ps5-patch-downloader --restart unless-stopped \
   --user 99:100 --stop-timeout 45 \
