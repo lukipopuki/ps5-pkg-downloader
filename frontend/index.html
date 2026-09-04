@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PS5 Patch Downloader</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" aria-hidden="true" class="brand-icon"><path d="M4 15.5 12 3l8 12.5-8 5.5-8-5.5Z"/></svg>
+      <div>
+        <h1>PS5 Patch Downloader</h1>
+        <p class="subtitle">Game updates straight from the official Sony CDN</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span id="fw-badge" class="badge" title="Configured maximum firmware">FW –</span>
+      <button id="btn-settings" class="ghost" type="button">Settings</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel" id="search-panel">
+      <form id="search-form" autocomplete="off">
+        <input id="search-input" type="search" placeholder="Title ID (PPSA08338) or game name (Spider-Man 2)" aria-label="Search">
+        <button type="submit" class="primary">Search</button>
+        <button type="button" id="btn-refresh-search" class="ghost" title="Bypass the metadata cache">Refresh</button>
+      </form>
+      <div id="search-status" class="status" hidden></div>
+      <ul id="search-results" class="results" hidden></ul>
+    </section>
+
+    <section class="panel" id="title-panel" hidden>
+      <div class="title-head">
+        <img id="title-icon" alt="" hidden>
+        <div class="title-meta">
+          <h2 id="title-name">–</h2>
+          <p class="mono" id="title-ids"></p>
+          <p class="muted" id="title-extra"></p>
+        </div>
+        <div class="title-actions">
+          <button id="btn-title-refresh" class="ghost" type="button">Refresh</button>
+        </div>
+      </div>
+
+      <div id="title-warning" class="notice warn" hidden></div>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="updates" type="button">Updates</button>
+        <button class="tab" data-tab="dlc" type="button">Additional content</button>
+        <button class="tab" data-tab="tools" type="button">Manual / version.xml</button>
+      </div>
+
+      <div class="tab-body" data-body="updates">
+        <table class="grid">
+          <thead>
+            <tr><th>Version</th><th>Required FW</th><th>Size</th><th>Date</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody id="updates-body"></tbody>
+        </table>
+        <p class="muted small" id="updates-empty" hidden>
+          No update entries were returned for this title.
+        </p>
+      </div>
+
+      <div class="tab-body" data-body="dlc" hidden>
+        <table class="grid">
+          <thead>
+            <tr><th>Name</th><th>Version</th><th>Required FW</th><th>Size</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody id="dlc-body"></tbody>
+        </table>
+        <p class="muted small" id="dlc-empty" hidden>No additional content listed.</p>
+      </div>
+
+      <div class="tab-body" data-body="tools" hidden>
+        <div class="field-row">
+          <label for="versionxml-input">Sony <code>version.xml</code> for this title</label>
+          <p class="muted small">
+            Registering it lets the app resolve the current patch directly from Sony,
+            without relying on the index site. Example:
+            <code class="mono">https://sgst.prod.dl.playstation.net/sgst/prod/00/np/PPSA08338_00/&lt;uuid&gt;-version.xml</code>
+          </p>
+          <div class="inline">
+            <input id="versionxml-input" type="url" placeholder="https://…-version.xml">
+            <button id="btn-versionxml" class="primary" type="button">Register</button>
+          </div>
+          <div id="versionxml-status" class="status" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">Start from a link</h2>
+      <p class="muted small">
+        Paste an official Sony manifest link (<code>.json</code>) or the matching
+        <code>_sc.pkg</code> link of an update. Pieces below <code>/app/pkg/</code> are rejected on
+        purpose: their manifest lives under a different revision and hash.
+      </p>
+      <div class="inline">
+        <input id="manual-url" type="url" placeholder="https://sgst.prod.dl.playstation.net/…/CONTENT-ID.json">
+        <input id="manual-title" type="text" placeholder="Title ID" class="short">
+        <input id="manual-version" type="text" placeholder="Version" class="short">
+        <button id="btn-manual" class="primary" type="button">Download</button>
+      </div>
+      <div id="manual-status" class="status" hidden></div>
+    </section>
+
+    <section class="panel" id="downloads-panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Downloads</h2>
+        <span id="downloads-summary" class="muted small"></span>
+      </div>
+      <div id="downloads-list" class="downloads"></div>
+      <p class="muted small" id="downloads-empty">Nothing queued.</p>
+    </section>
+  </main>
+
+  <dialog id="settings-dialog">
+    <form method="dialog" class="settings-form">
+      <h2>Settings</h2>
+      <label>Maximum firmware
+        <input id="set-firmware" type="text" placeholder="e.g. 12.60 (empty = no filter)">
+      </label>
+      <label>Cache TTL (hours)
+        <input id="set-ttl" type="number" min="0" step="0.5">
+      </label>
+      <label>Parallel downloads
+        <input id="set-concurrency" type="number" min="1" max="16" step="1">
+      </label>
+      <label>Bandwidth limit (Mbit/s, 0 = unlimited)
+        <input id="set-bandwidth" type="number" min="0" step="1">
+      </label>
+      <p class="muted small" id="settings-paths"></p>
+      <div class="dialog-actions">
+        <button type="button" id="btn-clear-cache" class="ghost">Clear cache</button>
+        <button type="button" id="btn-reload-rules" class="ghost">Reload rules</button>
+        <button value="cancel" class="ghost">Close</button>
+        <button type="button" id="btn-save-settings" class="primary">Save</button>
+      </div>
+      <div id="settings-status" class="status" hidden></div>
+    </form>
+  </dialog>
+
+  <footer>
+    <p class="muted small">
+      Game update packages only. This tool never downloads or installs PlayStation system
+      software, and you are responsible for using the downloaded updates lawfully.
+    </p>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

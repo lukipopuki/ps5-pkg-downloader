@@ -1,0 +1,82 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>ps5-patch-downloader</Name>
+  <Repository>ghcr.io/CHANGE-ME/ps5-patch-downloader:latest</Repository>
+  <Registry>https://ghcr.io/</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support/>
+  <Project/>
+  <Overview>
+    Search PlayStation 5 game updates and download them straight from the official
+    Sony CDN, with a WebUI, a persistent download queue (pause, resume, retry),
+    hash verification and a firmware filter.
+    Game update packages only - this container never downloads or installs
+    PlayStation system software.
+  </Overview>
+  <Category>Downloaders: Tools:</Category>
+  <WebUI>http://[IP]:[PORT:8080]/</WebUI>
+  <TemplateURL/>
+  <Icon>https://raw.githubusercontent.com/CHANGE-ME/ps5-patch-downloader/main/frontend/favicon.svg</Icon>
+  <ExtraParams>--user 99:100 --stop-timeout 45</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+
+  <Config Name="WebUI Port" Target="8080" Default="8080" Mode="tcp"
+          Description="Port of the web interface." Type="Port" Display="always"
+          Required="true" Mask="false">8080</Config>
+
+  <Config Name="Config" Target="/config" Default="/mnt/user/appdata/ps5-patch-downloader"
+          Mode="rw" Description="Database, settings and the editable PROSPERO rules file."
+          Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/ps5-patch-downloader</Config>
+
+  <Config Name="Downloads" Target="/downloads" Default="/mnt/user/downloads/PS5"
+          Mode="rw" Description="Where the finished .pkg files are written."
+          Type="Path" Display="always" Required="true" Mask="false">/mnt/user/downloads/PS5</Config>
+
+  <Config Name="TZ" Target="TZ" Default="Europe/Berlin" Mode=""
+          Description="Timezone used in log timestamps." Type="Variable"
+          Display="always" Required="false" Mask="false">Europe/Berlin</Config>
+
+  <Config Name="Parallel downloads" Target="MAX_CONCURRENT_DOWNLOADS" Default="2" Mode=""
+          Description="How many packages download at the same time." Type="Variable"
+          Display="always" Required="false" Mask="false">2</Config>
+
+  <Config Name="Bandwidth limit (Mbit/s)" Target="MAX_BANDWIDTH_MBPS" Default="0" Mode=""
+          Description="Total download limit across all jobs. 0 = unlimited." Type="Variable"
+          Display="always" Required="false" Mask="false">0</Config>
+
+  <Config Name="Maximum firmware" Target="MAX_FIRMWARE" Default="" Mode=""
+          Description="Updates that need a newer firmware are marked incompatible, e.g. 12.60. Empty = no filter."
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="Metadata cache TTL (hours)" Target="CACHE_TTL_HOURS" Default="6" Mode=""
+          Description="How long index lookups are cached before they are fetched again."
+          Type="Variable" Display="advanced" Required="false" Mask="false">6</Config>
+
+  <Config Name="Parallel pieces per package" Target="PIECE_CONCURRENCY" Default="2" Mode=""
+          Description="Parallel connections within one split package. 2-4 is usually plenty."
+          Type="Variable" Display="advanced" Required="false" Mask="false">2</Config>
+
+  <Config Name="Log level" Target="LOG_LEVEL" Default="INFO" Mode=""
+          Description="DEBUG, INFO, WARNING or ERROR." Type="Variable"
+          Display="advanced" Required="false" Mask="false">INFO</Config>
+
+  <Config Name="WebUI user" Target="AUTH_USERNAME" Default="" Mode=""
+          Description="Optional HTTP basic auth user. Leave empty to disable authentication."
+          Type="Variable" Display="advanced" Required="false" Mask="false"/>
+
+  <Config Name="WebUI password" Target="AUTH_PASSWORD" Default="" Mode=""
+          Description="Optional HTTP basic auth password." Type="Variable"
+          Display="advanced" Required="false" Mask="true"/>
+
+  <Config Name="API token" Target="API_TOKEN" Default="" Mode=""
+          Description="Optional bearer token for other tools (X-API-Token header)."
+          Type="Variable" Display="advanced" Required="false" Mask="true"/>
+</Container>

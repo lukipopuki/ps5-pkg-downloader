@@ -1,0 +1,194 @@
+# PROSPEROPatches scraping rules.
+#
+# PROSPEROPatches does not publish a stable public API, so every request path,
+# request body and regular expression the provider uses lives in this file
+# instead of in application code. When the site changes, edit this file and
+# press "Reload rules" in the WebUI - no rebuild, no code change.
+#
+# Placeholders usable in paths and params:
+#   {title_id} {query} {data_key} {content_ver} {content_id}
+#   {keyset_patch} {keyset_details} {keyset_changeinfo}
+#
+# Every "requests" list is tried in order; the first usable response wins,
+# failures are logged and skipped.
+#
+# Encodings: query (params in the URL), form (urlencoded body),
+#            json (JSON body + JSON content type),
+#            json-body-form-header (JSON body sent with a form content type -
+#            this is what the site's own frontend does today).
+version: 1
+
+# Sent with every request; Referer/Origin are added from base_url.
+headers:
+  Accept: 'application/json, text/html;q=0.9, */*;q=0.8'
+  X-Requested-With: 'XMLHttpRequest'
+
+# --- game page -------------------------------------------------------------
+title_page:
+  path: '/{title_id}'
+  patterns:
+    data_key:
+      - 'id="dynpatch"[^>]*data-key="([a-f0-9]+)"'
+      - 'data-key="([a-f0-9]+)"[^>]*id="dynpatch"'
+    title:
+      - '<title>([^<]*)</title>'
+    description:
+      - 'property="og:description"\s+content="([^"]{10,})"'
+      - 'name="description"\s+content="([^"]{10,})"'
+    icon:
+      - 'og:image["\s]+content="(https://cdn\.[^"]+)"'
+      - 'twitter:image["\s]+content="(https://cdn\.[^"]+)"'
+      - 'url\([\x22\x27]?(https://cdn\.[^\x22\x27)]+icon0[^\x22\x27)]*)'
+    banner:
+      - 'url\([\x22\x27]?(https://cdn\.[^\x22\x27)]+pic0[^\x22\x27)]*)'
+  # Strip "PPSA08338: " prefix and " | Site name" suffix from <title>.
+  title_strip:
+    - '^[A-Z]{4}[0-9]{5}:\s*'
+    - '\s*[|\u2013\u2014-][^|\u2013\u2014-]*$'
+  # Sidebar entries look like:
+  #   <li class="... bd-links-group ..."><strong>Region</strong> EU</li>
+  sidebar:
+    block: '<li[^>]*bd-links-group[^>]*>([\s\S]*?)</li>'
+    heading: '<strong[^>]*>([\s\S]*?)</strong>'
+    fields:
+      Content ID: content_id
+      Publisher: publisher
+      Publisher ID: publisher_id
+      Region: region
+
+# --- patch list ------------------------------------------------------------
+patches:
+  requests:
+    - method: POST
+      path: '/api/internal/loadpatches'
+      encoding: json-body-form-header
+      params:
+        titleid: '{title_id}'
+        key: '{data_key}'
+    - method: POST
+      path: '/api/internal/loadpatches'
+      encoding: form
+      params:
+        titleid: '{title_id}'
+        key: '{data_key}'
+  list_key: patches
+  success_key: success
+  last_updated_key: lastupdated
+  fields:
+    content_ver: ['content_ver', 'contentVer', 'version']
+    file_size: ['filesize', 'file_size', 'size']
+    required_firmware: ['required_firmware', 'requiredFirmware', 'fw']
+    import_date: ['import_date', 'importDate', 'date']
+    is_latest: ['is_latest', 'isLatest']
+    changelog: ['changelog_preview', 'changelog']
+    keyset_patch: ['keyset.patch']
+    keyset_details: ['keyset.details']
+    keyset_changeinfo: ['keyset.changeinfo']
+
+# --- additional content (DLC) ---------------------------------------------
+additional_content:
+  requests:
+    - method: POST
+      path: '/api/internal/loadac'
+      encoding: json-body-form-header
+      params:
+        titleid: '{title_id}'
+        key: '{data_key}'
+    - method: POST
+      path: '/api/internal/loadac'
+      encoding: form
+      params:
+        titleid: '{title_id}'
+        key: '{data_key}'
+  list_key: items
+  success_key: success
+  fields:
+    name: ['name']
+    content_id: ['contentid', 'content_id']
+    content_ver: ['content_ver', 'contentVer']
+    file_size: ['filesize', 'size']
+    required_firmware: ['required_firmware', 'requiredFirmware']
+    icon: ['icon']
+    key: ['key']
+
+# --- other regions ---------------------------------------------------------
+regions:
+  requests:
+    - method: GET
+      path: '/api/internal/data/switch-region.php'
+      params:
+        titleid: '{title_id}'
+  pattern: '<a\s+href="/([A-Z]{4}[0-9]{5})"[^>]*>([\s\S]*?)</a>'
+
+# --- search by game name ---------------------------------------------------
+# The site's search endpoint is not documented. Each candidate is tried until
+# one yields results. JSON responses are read via json_fields; HTML responses
+# are parsed with `pattern`, which only relies on links pointing at a
+# /PPSAxxxxx page - that survives most markup changes.
+search:
+  requests:
+    - method: POST
+      path: '/api/internal/search'
+      encoding: json-body-form-header
+      params:
+        query: '{query}'
+    - method: POST
+      path: '/api/internal/loadsearch'
+      encoding: json-body-form-header
+      params:
+        query: '{query}'
+    - method: GET
+      path: '/api/internal/data/search.php'
+      params:
+        q: '{query}'
+    - method: GET
+      path: '/search'
+      params:
+        q: '{query}'
+    - method: GET
+      path: '/'
+      params:
+        s: '{query}'
+  pattern: 'href=\\?"/([A-Z]{4}[0-9]{5})\\?"[^>]*>([\s\S]{0,300}?)</a>'
+  json_fields:
+    title_id: ['titleid', 'title_id', 'id']
+    name: ['name', 'title', 'titlename', 'title_name']
+    region: ['region']
+    icon: ['icon', 'image']
+
+# --- official download link resolution -------------------------------------
+# PROSPEROPatches renders the official Sony links in a modal loaded on demand.
+# The exact endpoint is not documented, so each candidate is tried and every
+# response (HTML or JSON) is scanned for official *.playstation.net manifest
+# and package links. If none of them work, the application falls back to
+# Sony's own version.xml and to manually pasted URLs, neither of which depends
+# on this section.
+link_resolution:
+  requests:
+    - method: POST
+      path: '/api/internal/loadpatchdetails'
+      encoding: json-body-form-header
+      params:
+        titleid: '{title_id}'
+        key: '{keyset_details}'
+    - method: POST
+      path: '/api/internal/loaddetails'
+      encoding: json-body-form-header
+      params:
+        titleid: '{title_id}'
+        key: '{keyset_details}'
+    - method: POST
+      path: '/api/internal/loadpatch'
+      encoding: json-body-form-header
+      params:
+        titleid: '{title_id}'
+        key: '{keyset_patch}'
+    - method: POST
+      path: '/api/internal/loadchangeinfo'
+      encoding: json-body-form-header
+      params:
+        titleid: '{title_id}'
+        key: '{keyset_changeinfo}'
+    - method: GET
+      path: '/{title_id}'
+      params: {}

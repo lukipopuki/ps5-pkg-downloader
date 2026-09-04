@@ -1,0 +1,43 @@
+services:
+  ps5-patch-downloader:
+    build: .
+    # Or use a prebuilt image instead of building locally:
+    # image: ghcr.io/<your-user>/ps5-patch-downloader:latest
+    container_name: ps5-patch-downloader
+    restart: unless-stopped
+
+    # Unraid: run as nobody:users so downloaded files match the rest of the
+    # array. Remove this line to use the image's own non-root user (1000:1000).
+    user: "99:100"
+
+    ports:
+      # Bind to the LAN interface only; the WebUI has no authentication by
+      # default. Use "8080:8080" if your bridge network needs it, and put a
+      # reverse proxy in front of it before exposing it to the internet.
+      - "8080:8080"
+
+    volumes:
+      - /mnt/user/appdata/ps5-patch-downloader:/config
+      - /mnt/user/downloads/PS5:/downloads
+
+    environment:
+      TZ: Europe/Berlin
+      MAX_CONCURRENT_DOWNLOADS: 2
+      PIECE_CONCURRENCY: 2
+      MAX_BANDWIDTH_MBPS: 0          # 0 = unlimited
+      CACHE_TTL_HOURS: 6
+      LOG_LEVEL: INFO
+      # MAX_FIRMWARE: "12.60"        # hide updates that need newer firmware
+      # AUTH_USERNAME: unraid        # optional HTTP basic auth
+      # AUTH_PASSWORD: ${WEBUI_PASSWORD}
+      # API_TOKEN: ${API_TOKEN}      # optional token for other tools
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/api/health',timeout=4).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+    # Give in-flight downloads time to persist their progress on stop.
+    stop_grace_period: 45s

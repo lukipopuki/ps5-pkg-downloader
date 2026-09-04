@@ -1,0 +1,23 @@
+[project]
+name = "ps5-patch-downloader"
+version = "1.0.0"
+description = "Search PS5 game updates and download them from the official Sony CDN"
+requires-python = ">=3.11"
+license = { text = "GPL-3.0-or-later" }
+dynamic = ["dependencies"]
+
+[project.scripts]
+ps5-patch-downloader = "app.main:run"
+
+[tool.setuptools]
+packages = ["app", "app.api", "app.providers", "app.download"]
+
+[tool.setuptools.package-data]
+"app.providers" = ["*.yaml"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

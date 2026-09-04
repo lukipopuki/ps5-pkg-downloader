@@ -1,0 +1,25 @@
+{
+  "originalFileSize": 12884901888,
+  "numberOfSplitFiles": 3,
+  "packageDigest": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+  "pieces": [
+    {
+      "url": "https://gst.prod.dl.playstation.net/gst/prod/00/PPSA08338_00/app/pkg/18/f_cafebabe/EP9000-PPSA08338_00-MARVELSPIDERMAN2_0.pkg",
+      "fileOffset": 0,
+      "fileSize": 4294967296,
+      "hashValue": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "url": "https://gst.prod.dl.playstation.net/gst/prod/00/PPSA08338_00/app/pkg/18/f_cafebabe/EP9000-PPSA08338_00-MARVELSPIDERMAN2_1.pkg",
+      "fileOffset": 4294967296,
+      "fileSize": 4294967296,
+      "hashValue": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+    },
+    {
+      "url": "https://gst.prod.dl.playstation.net/gst/prod/00/PPSA08338_00/app/pkg/18/f_cafebabe/EP9000-PPSA08338_00-MARVELSPIDERMAN2_2.pkg",
+      "fileOffset": 8589934592,
+      "fileSize": 4294967296,
+      "hashValue": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}
