@@ -94,6 +94,15 @@ DATA_KEY_PATTERNS = [
 PLAYSTATION_LINK_RE = re.compile(r"https?://[A-Za-z0-9.\-]*playstation\.net/[^\s\"'<>\\)]+", re.I)
 TITLE_LINK_RE = re.compile(r'href=\\?"/([A-Z]{4}[0-9]{5})\\?"')
 
+# Endpoint discovery: the site's own markup and scripts name the paths it
+# calls. Finding them beats guessing them.
+ENDPOINT_RE = re.compile(r"""["'`](/(?:api|ajax|internal)/[A-Za-z0-9_./-]{2,90}|/[A-Za-z0-9_./-]{2,90}\.php)["'`]""")
+SCRIPT_SRC_RE = re.compile(r'<script[^>]+src="([^"]+)"', re.I)
+DATA_ATTR_RE = re.compile(r'\b(data-[a-z0-9-]+)="([^"]{0,80})"')
+MAX_SCRIPTS = 12
+MAX_SCRIPT_BYTES = 4 * 1024 * 1024
+MAX_DISCOVERED_PROBES = 20
+
 
 def fill(template: str, context: Dict[str, str]) -> str:
     out = template
@@ -206,6 +215,111 @@ def probe_app(app_url: str, title_id: str, query: str, out_dir: Path, summary: L
         summary.append(f"  {name:10s} HTTP {status}  {len(body)} bytes{note}")
 
 
+def discover_and_probe(
+    base: str,
+    out_dir: Path,
+    context: Dict[str, str],
+    summary: List[str],
+    findings: Dict[str, Any],
+) -> None:
+    """Read the site's own markup and scripts, then try what they reference.
+
+    None of the configured endpoints produced an official link, so the paths
+    have to come from somewhere real: the title page and the JavaScript it
+    loads both spell out the URLs the site calls.
+    """
+    summary.append("")
+    summary.append("=== endpoint discovery ===")
+
+    page = out_dir / "title-page.html"
+    if not page.exists():
+        summary.append("  no title page captured, nothing to inspect")
+        return
+    markup = page.read_text(encoding="utf-8", errors="replace")
+
+    sources: List[Tuple[str, str]] = [("title-page", markup)]
+
+    scripts = [s for s in SCRIPT_SRC_RE.findall(markup) if not s.startswith(("http://", "https://"))
+               or urllib.parse.urlparse(s).netloc.endswith(urllib.parse.urlparse(base).netloc)
+               or "prospero" in s]
+    for index, src in enumerate(scripts[:MAX_SCRIPTS]):
+        url = src if src.startswith("http") else base + ("" if src.startswith("/") else "/") + src
+        status, _, body, error = request("GET", url, {}, "query", base)
+        if error or not body or len(body) > MAX_SCRIPT_BYTES:
+            summary.append(f"  script {src[:70]:70s} {error or f'HTTP {status}'}")
+            continue
+        name = f"script-{index:02d}-" + re.sub(r"[^A-Za-z0-9._-]", "_", src.split("/")[-1])[:60]
+        (out_dir / name).write_bytes(body)
+        sources.append((name, body.decode("utf-8", errors="replace")))
+        summary.append(f"  script {src[:70]:70s} HTTP {status} {len(body)} bytes")
+
+    # data-* attributes carry the keys the frontend passes to those endpoints.
+    attributes: Dict[str, str] = {}
+    for attr, value in DATA_ATTR_RE.findall(markup):
+        attributes.setdefault(attr, value)
+    if attributes:
+        summary.append("  data attributes on the page:")
+        for attr, value in sorted(attributes.items())[:25]:
+            summary.append(f"      {attr}=\"{value[:60]}\"")
+
+    discovered: Dict[str, str] = {}
+    for origin, text in sources:
+        for path in ENDPOINT_RE.findall(text):
+            discovered.setdefault(path, origin)
+    if not discovered:
+        summary.append("  no endpoint paths found in the page or its scripts")
+        return
+
+    summary.append(f"  endpoint paths referenced by the site ({len(discovered)}):")
+    for path, origin in sorted(discovered.items()):
+        summary.append(f"      {path:60s} (from {origin})")
+
+    already = {"/api/internal/loadpatches", "/api/internal/loadac",
+               "/api/internal/data/switch-region.php", "/api/internal/loadpatchdetails",
+               "/api/internal/loaddetails", "/api/internal/loadpatch",
+               "/api/internal/loadchangeinfo", "/api/internal/search"}
+    candidates = [p for p in sorted(discovered) if p not in already]
+
+    keys = [(label, context[label]) for label in
+            ("keyset_details", "keyset_patch", "keyset_changeinfo", "data_key")
+            if context.get(label)]
+    if not keys:
+        summary.append("  no keys available, cannot probe the discovered endpoints")
+        return
+
+    summary.append("")
+    summary.append("=== probing discovered endpoints ===")
+    probed = 0
+    for path in candidates:
+        if probed >= MAX_DISCOVERED_PROBES:
+            summary.append(f"  (stopped after {MAX_DISCOVERED_PROBES} endpoints)")
+            break
+        for label, value in keys:
+            probed += 1
+            params = {"titleid": context["title_id"], "key": value}
+            status, headers, body, error = request(
+                "POST", base + path, params, "json-body-form-header", base
+            )
+            if error:
+                summary.append(f"  POST {path:52s} [{label}] FAILED {error}")
+                continue
+            info = describe(body)
+            note = ""
+            if info.get("playstation_links"):
+                note = f"  <<< OFFICIAL LINKS: {info['playstation_links'][:3]}"
+                name = "discovered-" + re.sub(r"[^A-Za-z0-9]", "_", path)[:60] + f"-{label}"
+                suffix = "json" if info.get("json") else "html"
+                (out_dir / f"{name}.{suffix}").write_bytes(body)
+                findings[f"discovered:{path}:{label}"] = {"status": status, **info}
+            elif info.get("json"):
+                note = f"  json keys={info.get('json_keys')}"
+            summary.append(
+                f"  POST {path:52s} [{label}] HTTP {status:<4} {info['bytes']:>7} bytes{note}"
+            )
+            if info.get("playstation_links"):
+                break  # this key works, no need to try the others
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("title_id", help="a title to probe, e.g. PPSA08338")
@@ -301,6 +415,11 @@ def main() -> int:
                         context["keyset_details"] = str(keyset.get("details") or "")
                         context["keyset_changeinfo"] = str(keyset.get("changeinfo") or "")
                         summary.append(f"      keyset: {sorted(keyset.keys())}")
+
+    # If nothing so far produced an official link, go looking for the endpoints
+    # the site itself calls instead of relying on the guessed list.
+    if not any(data.get("playstation_links") for data in findings.values()):
+        discover_and_probe(base, out_dir, context, summary, findings)
 
     if args.app:
         probe_app(args.app.rstrip("/"), title_id, context["query"], out_dir, summary)
