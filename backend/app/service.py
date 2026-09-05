@@ -262,7 +262,13 @@ class AppService:
             )
             log.info(
                 "Found title",
-                extra={"title": title_id, "name": details.page.name, "patches": len(details.patches)},
+                # Never use a reserved LogRecord attribute ("name", "module",
+                # "message", ...) as an extra key: logging raises on collision.
+                extra={
+                    "title": title_id,
+                    "title_name": details.page.name,
+                    "patches": len(details.patches),
+                },
             )
             return await self._title_response(details, version_file_uri, cached=False)
 

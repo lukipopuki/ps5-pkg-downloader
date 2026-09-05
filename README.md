@@ -545,6 +545,21 @@ anlegen.
 Die Prüfung läuft gegen den Share hinter `/downloads`. Platz schaffen oder das
 Volume auf einen größeren Share legen.
 
+**Etwas anderes klemmt — Diagnosebericht erzeugen**
+`tools/diagnose.py` führt genau die Requests aus, die der Provider ausführt,
+speichert jede rohe Antwort und fasst zusammen, welches Muster gegriffen hat
+und welches nicht. Es braucht nur die Python-Standardbibliothek:
+
+```bash
+python3 tools/diagnose.py PPSA08338 --search "spider-man" --app http://localhost:8080
+```
+
+Das Ergebnis ist ein Ordner plus `prospero-report-<zeit>.tar.gz` mit den
+Rohantworten und einer `summary.txt`. Genau daraus lässt sich
+`prospero_rules.yaml` anpassen. Erfasst werden ausschließlich öffentliche
+Seiten und die Antworten der eigenen Instanz — `--app` also nur auf die eigene
+Instanz richten, und keine Zugangsdaten übergeben.
+
 **Hash-Mismatch im Log**
 Das betroffene Piece wird genau einmal komplett neu geladen. Bleibt es
 inkonsistent, geht der Job auf `error`, statt eine kaputte `.pkg` zu
