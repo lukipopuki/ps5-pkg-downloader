@@ -74,9 +74,7 @@ docker compose up -d --build
 
 WebUI: `http://<unraid-ip>:8080`
 
-Solange das Repository **privat** ist, fragt `git clone` nach Zugangsdaten —
-siehe [Zugriff auf das Repository](#zugriff-auf-das-repository). Die
-ausführliche Variante steht unten.
+Die ausführliche Variante steht unten.
 
 ---
 
@@ -123,69 +121,21 @@ docker compose logs -f
 
 ### Zugriff auf das Repository
 
-Das Repository ist privat, deshalb verlangt `git clone` eine Anmeldung — und
-GitHub akzeptiert dafür **kein Account-Passwort** mehr. Drei Wege:
+Das Repository ist öffentlich, `git clone` braucht also keine Anmeldung. Der
+Default-Branch ist bereits der Entwicklungsbranch, deshalb ist kein `-b` nötig.
 
-**Personal Access Token.** GitHub → *Settings → Developer settings → Personal
-access tokens → Fine-grained tokens → Generate new token*, unter *Repository
-access* nur `ps5-pkg-downloader` auswählen und als Berechtigung
-*Contents: Read-only* setzen. Beim Klonen dann:
+Ohne Git geht es auch: auf GitHub *Code → Download ZIP*, entpacken und im
+entpackten Ordner `docker compose up -d --build`. Dafür gibt es später
+allerdings kein `git pull`.
 
-```text
-Username: lukipopuki      ← der GitHub-Benutzername, nicht die E-Mail-Adresse
-Password: github_pat_…    ← der Token, nicht das Account-Passwort
-```
-
-Damit spätere `git pull` den Token nicht erneut abfragen:
-`git config credential.helper store` im geklonten Verzeichnis.
-
-**SSH-Key.** Sauberer für einen Server, der dauerhaft läuft:
-
-```bash
-ssh-keygen -t ed25519 -C "unraid" -f /root/.ssh/id_ed25519 -N ""
-cat /root/.ssh/id_ed25519.pub     # → GitHub, Settings → SSH and GPG keys
-git clone git@github.com:lukipopuki/ps5-pkg-downloader.git src
-```
-
-Achtung: `/root` liegt auf Unraid im RAM und ist nach einem Neustart weg. Key
-dauerhaft sichern und über die `go`-Datei zurückkopieren:
-
-```bash
-mkdir -p /boot/config/ssh/root && cp /root/.ssh/id_ed25519* /boot/config/ssh/root/
-# in /boot/config/go ergänzen:
-# mkdir -p /root/.ssh && cp /boot/config/ssh/root/id_ed25519* /root/.ssh/ \
-#   && chmod 600 /root/.ssh/id_ed25519
-```
-
-**Ohne Git.** Ein Archiv reicht auch — auf einem Rechner mit GitHub-Zugang
-*Code → Download ZIP* laden, per SMB nach
-`\\<server>\appdata\ps5-patch-downloader\` kopieren und entpacken:
-
-```bash
-cd /mnt/user/appdata/ps5-patch-downloader
-unzip ps5-pkg-downloader-*.zip && mv ps5-pkg-downloader-* src && cd src
-docker compose up -d --build
-```
-
-Dafür gibt es später kein `git pull`; Updates laufen dann über ein neues Archiv.
-
-Wenn dir das alles zu umständlich ist: das Repository unter *Settings →
-General → Change visibility* auf öffentlich stellen, dann klont es ohne jede
-Anmeldung.
-
-Erwartete erste Zeilen:
-
-```text
-2026-09-04 20:14:03  INFO  db                     Database ready  path=/config/ps5-patch-downloader.sqlite3
-2026-09-04 20:14:03  INFO  service                Loaded PROSPERO rules  source=/config/prospero_rules.yaml version=1
-2026-09-04 20:14:03  INFO  main                   ps5-patch-downloader started  version=1.0.0 port=8080 auth=off
-```
-
-Alternativ ohne Compose, direkt über die Unraid-Docker-Oberfläche: die
-mitgelieferte **`unraid-template.xml`** nach
-`/boot/config/plugins/dockerMan/templates-user/` kopieren, `Repository` und
-`Icon` auf dein Image anpassen, dann Docker → *Add Container* → Template
-auswählen.
+Falls du das Repository wieder auf privat stellst, verlangt `git clone` eine
+Anmeldung — und GitHub akzeptiert dafür **kein Account-Passwort**. Dann
+entweder ein Fine-grained Personal Access Token (*Settings → Developer
+settings*, Zugriff nur auf dieses Repository, Berechtigung *Contents:
+Read-only*; beim Klonen als Passwort eingeben, Benutzername ist der
+GitHub-Name, nicht die E-Mail-Adresse) oder ein SSH-Key. Auf Unraid liegt
+`/root` im RAM: einen SSH-Key dort dauerhaft zu halten heißt, ihn nach
+`/boot/config/ssh/` zu kopieren und über die `go`-Datei zurückzuspielen.
 
 ### Ohne Compose, nur mit `docker run`
 
