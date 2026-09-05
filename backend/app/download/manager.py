@@ -247,6 +247,10 @@ class DownloadManager:
             state = self.runtime.get(job_id)
             if state:
                 state.controls.pause()
+            # Record the new state right away instead of waiting for the
+            # transfer task to wind down: otherwise an immediate resume still
+            # sees "running" and is rejected.
+            await self._update(job_id, status=STATUS_PAUSED)
         elif row["status"] == STATUS_QUEUED:
             await self._update(job_id, status=STATUS_PAUSED)
         else:
@@ -381,16 +385,19 @@ class DownloadManager:
 
         except DownloadPaused:
             await self._persist_progress(job_id, state, force=True)
+            # Only claim the job if nothing happened to it while the transfer
+            # was winding down - a resume in that window already moved it to
+            # queued, and overwriting that would silently strand the download.
             if state.controls.pause_reason == "shutdown":
                 # Not a user decision: leave it queued so the next start picks
                 # it back up where it stopped.
-                await self._update(job_id, status=STATUS_QUEUED)
+                await self._update_if_status(job_id, STATUS_RUNNING, status=STATUS_QUEUED)
                 log.info(
                     "Download interrupted by shutdown, will resume on next start",
                     extra={"job": job_id, "at": f"{state.downloaded / 1e9:.2f} GB"},
                 )
             else:
-                await self._update(job_id, status=STATUS_PAUSED)
+                await self._update_if_status(job_id, STATUS_RUNNING, status=STATUS_PAUSED)
                 log.info("Download paused", extra={"job": job_id})
         except DownloadCancelled:
             await self._persist_progress(job_id, state, force=True)
@@ -576,6 +583,17 @@ class DownloadManager:
         await self.db.execute(
             f"UPDATE downloads SET {assignments} WHERE id = ?",
             (*fields.values(), job_id),
+        )
+
+    async def _update_if_status(self, job_id: str, expected: str, **fields: Any) -> None:
+        """Update only while the job still is in the state we last saw."""
+        if not fields:
+            return
+        fields["updated_at"] = time.time()
+        assignments = ", ".join(f"{key} = ?" for key in fields)
+        await self.db.execute(
+            f"UPDATE downloads SET {assignments} WHERE id = ? AND status = ?",
+            (*fields.values(), job_id, expected),
         )
 
     def _serialise(self, row: Any) -> Dict[str, Any]:

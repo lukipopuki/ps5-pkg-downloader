@@ -326,3 +326,42 @@ async def test_additional_content_lands_in_its_own_subtree(settings, cdn):
         assert not (settings.download_dir / "PPSA08338" / "dlc" / "metadata.json").exists()
     finally:
         await teardown(manager, db, client)
+
+
+async def test_pause_then_immediate_resume_is_accepted(settings, cdn):
+    """Pausing and resuming right away must not be rejected.
+
+    pause() only signals the transfer task, which needs a moment to wind down.
+    If the queue state were written by that task alone, a quick resume would
+    see "running" and fail - and a resume landing in that window must not be
+    overwritten by the winding down task either.
+    """
+    blob = os.urandom(500_000)
+    manifest_url = make_manifest(cdn, [blob])
+    cdn.resources["/app/pkg/1/f_def/TEST_0.pkg"].chunk_delay = 0.05
+    cdn.resources["/app/pkg/1/f_def/TEST_0.pkg"].chunk_size = 32_000
+
+    manager, db, client = await build_manager(settings)
+    try:
+        job = await manager.enqueue(DownloadRequest(
+            manifest_url=manifest_url, title_id="PPSA00021", content_ver="01.000.000",
+        ))
+        job_id = job["id"]
+        await wait_for(manager, job_id, {"running"})
+        await asyncio.sleep(0.2)
+
+        paused = await manager.pause(job_id)
+        assert paused["status"] == "paused"
+
+        # No sleep on purpose: this is the window the race lived in.
+        resumed = await manager.resume(job_id)
+        assert resumed["status"] == "queued"
+
+        cdn.resources["/app/pkg/1/f_def/TEST_0.pkg"].chunk_delay = 0.0
+        done = await wait_for(manager, job_id, {"completed", "error"})
+        assert done["status"] == "completed", done["error"]
+
+        final = settings.download_dir / "PPSA00021" / "01.000.000" / "PPSA00021_01.000.000.pkg"
+        assert final.read_bytes() == blob
+    finally:
+        await teardown(manager, db, client)
